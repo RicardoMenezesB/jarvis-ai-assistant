@@ -1,45 +1,77 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
 from typing import Any
 
+import httpx
 
-class MemoryStore:
-    def __init__(self, max_history: int = 12):
-        self.max_history = max_history
-        self.sessions: dict[str, deque[str]] = defaultdict(deque)
-        self.profiles: dict[str, dict[str, Any]] = defaultdict(dict)
+from app.config import settings
 
-    def push(self, session_id: str, role: str, content: str) -> None:
-        history = self.sessions[session_id]
-        history.append(f"{role}: {content}")
-        while len(history) > self.max_history:
-            history.popleft()
 
-    def get_context(self, session_id: str) -> str:
-        history = list(self.sessions.get(session_id, []))
-        if not history:
-            return "Sem memória recente."
-        return "\n".join(history)
+class LLMService:
+    async def generate(self, prompt: str, context: str = "") -> str:
+        if settings.groq_api_key:
+            return await self._generate_with_groq(prompt, context)
+        return self._fallback_response(prompt, context)
 
-    def learn_preference(self, session_id: str, message: str) -> None:
-        lower = message.lower()
-        profile = self.profiles[session_id]
+    async def _generate_with_groq(self, prompt: str, context: str) -> str:
+        headers = {
+            "Authorization": f"Bearer {settings.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": settings.groq_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Você é PC, um assistente premium de IA de voz e produtividade. "
+                        "Responda com clareza, personalidade premium, contexto e ação prática."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Contexto:\n{context}\n\nPergunta:\n{prompt}",
+                },
+            ],
+            "temperature": 0.7,
+        }
 
-        for key in ["prefiro", "gosto de", "quero", "lembre-se", "me lembre"]:
-            if key in lower:
-                profile["last_note"] = message
-                break
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                return payload["choices"][0]["message"]["content"].strip()
+        except Exception:
+            return self._fallback_response(prompt, context)
 
-        if "python" in lower:
-            profile["language"] = "Python"
-        if "react" in lower:
-            profile["framework"] = "React"
-        if "voz" in lower:
-            profile["interaction"] = "voz"
+    def _fallback_response(self, prompt: str, context: str) -> str:
+        text = prompt.lower()
 
-    def to_profile_summary(self, session_id: str) -> str:
-        profile = self.profiles.get(session_id, {})
-        if not profile:
-            return "Nenhuma preferência memorizada ainda."
-        return ", ".join(f"{k}: {v}" for k, v in profile.items())
+        if any(keyword in text for keyword in ["pesquise", "procure", "buscar", "internet", "web", "notícia", "noticias"]):
+            return (
+                "PC está preparado para pesquisar e resumir as fontes mais relevantes. "
+                "Se você configurar uma API de busca, posso trazer citações e análise em tempo real."
+            )
+
+        if any(keyword in text for keyword in ["código", "codigo", "programar", "python", "react", "app", "api", "backend", "frontend"]):
+            return (
+                "Posso estruturar o projeto, escrever a arquitetura, criar os arquivos e te entregar um MVP pronto para evoluir."
+            )
+
+        if any(keyword in text for keyword in ["roteiro", "vídeo", "video", "script", "conteúdo", "conteudo"]):
+            return (
+                "Claro. Vou transformar a sua ideia em roteiro, sequência narrativa, objetivos e estrutura de produção com tom profissional."
+            )
+
+        if any(keyword in text for keyword in ["lembre", "memória", "perfil", "aprender", "preferência", "preferencia"]):
+            return "Entendido. Vou registrar esse contexto e usá-lo nas próximas interações para personalizar melhor a experiência."
+
+        return (
+            "PC online e pronto. Posso pesquisar, criar código, organizar tarefas, escrever roteiros e ajudar com decisões. "
+            f"Contexto atual: {context[:220]}"
+        )

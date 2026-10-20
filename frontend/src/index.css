@@ -1,11 +1,12 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Role = 'user' | 'assistant';
+type Intent = 'assistant' | 'research' | 'coding' | 'creative' | 'planning' | 'memory';
 
 type Message = {
   role: Role;
   content: string;
-  intent?: string;
+  intent?: Intent;
 };
 
 type SearchItem = {
@@ -14,6 +15,13 @@ type SearchItem = {
   content?: string;
 };
 
+declare global {
+  interface Window {
+    SpeechRecognition?: any;
+    webkitSpeechRecognition?: any;
+  }
+}
+
 const API_BASE = 'http://localhost:8000';
 
 function App() {
@@ -21,7 +29,7 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'PC online. Diga o que você precisa — pesquisa, código, roteiro, organização ou conversa.',
+      content: 'PC online. Diga o que precisa: pesquisa, código, roteiro, planejamento ou conversa.',
       intent: 'assistant',
     },
   ]);
@@ -29,50 +37,59 @@ function App() {
   const [listening, setListening] = useState(false);
   const [status, setStatus] = useState('Sistema pronto');
   const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
+  const [systemState, setSystemState] = useState<'online' | 'listening' | 'thinking' | 'researching' | 'executing'>('online');
+  const recognitionRef = useRef<any>(null);
 
-  const recognition = useMemo(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      return null;
-    }
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
 
-    const instance = new SpeechRecognition();
-    instance.lang = 'pt-BR';
-    instance.interimResults = false;
-    instance.maxAlternatives = 1;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-    instance.onstart = () => {
+    recognition.onstart = () => {
       setListening(true);
+      setSystemState('listening');
       setStatus('Escutando sua voz...');
     };
 
-    instance.onresult = (event: any) => {
+    recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       setDraft(transcript);
       setStatus('Comando capturado');
     };
 
-    instance.onend = () => {
+    recognition.onend = () => {
       setListening(false);
-      setStatus('Ouvindo pronto para novo comando');
+      setSystemState('online');
+      setStatus('PC pronto para novo comando');
     };
 
-    return instance;
+    recognitionRef.current = recognition;
   }, []);
+
+  const speak = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
+  };
 
   const sendMessage = async (value?: string) => {
     const input = (value ?? draft).trim();
     if (!input) return;
 
     setLoading(true);
+    setSystemState('thinking');
     setStatus('PC processando sua solicitação...');
 
-    const userMessage: Message = {
-      role: 'user',
-      content: input,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, { role: 'user', content: input }]);
     setDraft('');
 
     try {
@@ -87,56 +104,62 @@ function App() {
       }
 
       const data = await response.json();
+      const assistantReply = data.reply || 'PC respondeu';
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: data.reply,
-        intent: data.intent,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: assistantReply, intent: data.intent }]);
       setSearchItems(data.search_results ?? []);
       setStatus(`Intent: ${data.intent ?? 'assistant'}`);
+      setSystemState(data.intent === 'research' ? 'researching' : 'executing');
+      speak(assistantReply);
     } catch (error) {
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'PC está em modo offline local. Verifique se o backend está rodando e tente novamente.',
+          content: 'PC está em modo local. Verifique se o backend está rodando antes de usar a IA completa.',
           intent: 'assistant',
         },
       ]);
       setStatus('Backend indisponível');
+      setSystemState('online');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await sendMessage();
   };
 
   const startListening = () => {
-    if (!recognition) {
+    if (!recognitionRef.current) {
       setStatus('Seu navegador não suporta reconhecimento de voz');
       return;
     }
 
-    recognition.start();
+    recognitionRef.current.start();
   };
 
   const quickActions = [
     'Pesquise sobre IA de voz',
-    'Crie um roteiro de vídeo',
-    'Construa um app em React',
-    'Me ajude a planejar a semana',
+    'Crie um roteiro premium para vídeo',
+    'Construa um app em React com IA',
+    'Me ajude a planejar minha semana',
   ];
 
+  const systemModes: Record<typeof systemState, string> = {
+    online: 'online',
+    listening: 'listening',
+    thinking: 'thinking',
+    researching: 'researching',
+    executing: 'executing',
+  };
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar panel">
-        <div className="brand-row">
+    <div className="jarvis-app">
+      <aside className="sidebar glass-panel">
+        <div className="brand-block">
           <div className="brand-mark">PC</div>
           <div>
             <p className="eyebrow">Assistente premium</p>
@@ -144,51 +167,75 @@ function App() {
           </div>
         </div>
 
-        <div className="status-box">
-          <span className="status-dot" />
+        <div className="system-pill">
+          <span className="pulse-dot" />
           <span>{status}</span>
         </div>
 
-        <div className="shortcut-list">
+        <div className="quick-actions">
           {quickActions.map((action) => (
-            <button key={action} onClick={() => sendMessage(action)} className="shortcut-button" type="button">
+            <button key={action} type="button" className="action-btn" onClick={() => sendMessage(action)}>
               {action}
             </button>
           ))}
         </div>
 
-        <div className="metrics">
-          <div className="metric-card">
+        <div className="metrics-grid">
+          <div className="metric-box">
             <span>voz</span>
             <strong>{listening ? 'ativa' : 'pronta'}</strong>
           </div>
-          <div className="metric-card">
+          <div className="metric-box">
             <span>agentes</span>
-            <strong>5</strong>
+            <strong>6</strong>
           </div>
-          <div className="metric-card">
+          <div className="metric-box">
             <span>memória</span>
             <strong>online</strong>
           </div>
         </div>
       </aside>
 
-      <main className="main-panel panel">
-        <header className="header-bar">
+      <main className="main-panel glass-panel">
+        <header className="topbar">
           <div>
             <p className="eyebrow">Sistema operacional do assistente</p>
             <h2>Interface principal</h2>
           </div>
 
           <div className="toolbar">
-            <button type="button" className="secondary-button" onClick={() => setMessages([{ role: 'assistant', content: 'Sessão reiniciada. PC pronto.', intent: 'assistant' }])}>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                setMessages([{ role: 'assistant', content: 'Sessão reiniciada. PC online e pronto.', intent: 'assistant' }]);
+                setSearchItems([]);
+                setStatus('Sessão reiniciada');
+              }}
+            >
               reset
             </button>
-            <button type="button" className={`voice-button ${listening ? 'active' : ''}`} onClick={startListening}>
+            <button
+              type="button"
+              className={`voice-btn ${listening ? 'active' : ''}`}
+              onClick={startListening}
+            >
               {listening ? 'escutando' : 'microfone'}
             </button>
           </div>
         </header>
+
+        <div className="hud-panel">
+          <div className="hud-ring">
+            <div className="hud-core">
+              <span>{systemModes[systemState]}</span>
+            </div>
+          </div>
+          <div className="hud-info">
+            <small>estado</small>
+            <strong>{systemModes[systemState].toUpperCase()}</strong>
+          </div>
+        </div>
 
         <div className="chat-window">
           {messages.map((message, index) => (
@@ -204,13 +251,13 @@ function App() {
             <div className="message-row assistant">
               <div className="bubble loading-bubble">
                 <span className="pulse" />
-                <span>PC está pensando...</span>
+                <span>PC está processando...</span>
               </div>
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="composer">
+        <form className="composer" onSubmit={handleSubmit}>
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -226,9 +273,9 @@ function App() {
           <div className="search-panel">
             <h3>Busca ativa</h3>
             {searchItems.map((item, index) => (
-              <a key={`${item.url ?? 'item'}-${index}`} href={item.url ?? '#'} target="_blank" rel="noreferrer" className="search-card">
+              <a key={`${item.url ?? 'result'}-${index}`} href={item.url ?? '#'} target="_blank" rel="noreferrer" className="search-card">
                 <strong>{item.title ?? 'Resultado'}</strong>
-                <span>{item.content ?? 'Sem resumo adicional'}</span>
+                <span>{item.content ?? 'Sem resumo disponível'}</span>
               </a>
             ))}
           </div>
