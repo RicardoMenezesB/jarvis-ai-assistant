@@ -1,385 +1,101 @@
-* {
-  box-sizing: border-box;
-}
+# Configurações do projeto PC
 
-html, body, #root {
-  margin: 0;
-  height: 100%;
-  min-height: 100%;
-  font-family: 'Inter', sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(34, 211, 238, 0.15), transparent 20%),
-    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.16), transparent 20%),
-    #040b13;
-  color: #e6edf7;
-}
+## Visão geral
+PC é um assistente de IA de voz e produtividade com arquitetura inspirada em um copiloto premium tipo Jarvis.
 
-button, input {
-  font: inherit;
-}
+Ele pode:
+- conversar por voz e texto
+- pesquisar na web
+- escrever código, roteiros e estratégias
+- lembrar preferências do usuário
+- usar múltiplos agentes especializados
+- evoluir para automações e tarefas mais avançadas
 
-.jarvis-app {
-  display: grid;
-  grid-template-columns: 310px 1fr;
-  gap: 24px;
-  height: 100%;
-  padding: 24px;
-}
+## Stack recomendada
+- Frontend: React + Vite + TypeScript
+- Backend: FastAPI + Python
+- IA: Groq, OpenRouter, OpenAI, Ollama
+- Busca: Tavily, Brave
+- Voz: Web Speech API + TTS
+- Memória: sessão local em MVP e evolução para banco + embeddings
 
-.glass-panel {
-  background: rgba(8, 15, 25, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 26px;
-  box-shadow: 0 25px 60px rgba(3, 7, 18, 0.7), inset 0 0 0 1px rgba(255,255,255,0.02);
-  backdrop-filter: blur(18px);
-}
+## Estrutura do projeto
+- `backend/` — API e lógica dos agentes
+- `frontend/` — interface do assistente
+- `.env.example` — modelo de variáveis de ambiente
 
-.sidebar {
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
+## Configuração das chaves
+Crie um arquivo `.env` na raiz do projeto baseado no `.env.example`.
 
-.brand-block {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+```bash
+cp .env.example .env
+```
 
-.brand-mark {
-  width: 62px;
-  height: 62px;
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #7dd3fc, #22c55e);
-  color: #061822;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
+Preencha os valores conforme o provedor que você quiser usar.
 
-h1, h2, h3, p {
-  margin: 0;
-}
+### Exemplos de chave por provedor
+- Groq: `GROQ_API_KEY`
+- OpenRouter: `OPENROUTER_API_KEY`
+- OpenAI: `OPENAI_API_KEY`
+- Tavily: `TAVILY_API_KEY`
+- Brave: `BRAVE_API_KEY`
+- ElevenLabs: `ELEVENLABS_API_KEY`
+- Azure Speech: `AZURE_SPEECH_KEY`
 
-.eyebrow {
-  font-size: 0.7rem;
-  letter-spacing: 0.17em;
-  text-transform: uppercase;
-  opacity: 0.7;
-}
+## Variáveis principais
+```env
+APP_NAME=PC
+APP_MODE=development
+DEFAULT_LANGUAGE=pt-BR
 
-.system-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(96, 165, 250, 0.2);
-  color: #dbeafe;
-}
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.1-70b-versatile
 
-.pulse-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 12px rgba(52, 211, 153, 0.9);
-  animation: blink 1.3s infinite ease-in-out;
-}
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=openai/gpt-4o-mini
 
-@keyframes blink {
-  0%, 100% { opacity: 0.7; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
 
-.quick-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
 
-.action-btn {
-  width: 100%;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 12px;
-  text-align: left;
-  color: #e2e8f0;
-  cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease;
-}
+TAVILY_API_KEY=your_key_here
+BRAVE_API_KEY=your_key_here
 
-.action-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(125, 211, 252, 0.5);
-}
+ELEVENLABS_API_KEY=your_key_here
+ELEVENLABS_VOICE_ID=your_voice_id
 
-.metrics-grid {
-  margin-top: auto;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
+AZURE_SPEECH_KEY=your_key_here
+AZURE_SPEECH_REGION=eastus
+```
 
-.metric-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 10px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.86);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-}
+## Como rodar
 
-.metric-box span {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  opacity: 0.7;
-}
+### Backend
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-.metric-box strong {
-  font-size: 0.95rem;
-}
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-.main-panel {
-  display: flex;
-  flex-direction: column;
-  padding: 18px;
-  min-height: 0;
-}
+## Próximas evoluções planejadas
+- wake word e ativação por voz automática
+- banco real com memória persistente
+- agentes mais especializados por tarefa
+- busca em tempo real com resumo e fontes
+- automações locais e tarefas do sistema
+- integração com ferramentas e APIs externas
+- painel de configuração dentro do app para trocar chaves em runtime
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ghost-btn,
-.voice-btn,
-.composer button {
-  border: 0;
-  border-radius: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.ghost-btn {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  color: #e2e8f0;
-}
-
-.voice-btn {
-  background: linear-gradient(135deg, #38bdf8, #22c55e);
-  color: #04141d;
-  font-weight: 700;
-}
-
-.voice-btn.active {
-  background: linear-gradient(135deg, #22c55e, #14b8a6);
-}
-
-.hud-panel {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(96, 165, 250, 0.18);
-  background: rgba(12, 18, 27, 0.7);
-  margin-bottom: 16px;
-}
-
-.hud-ring {
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, rgba(34, 211, 238, 0.14), rgba(15, 23, 42, 0.8) 58%, rgba(12, 18, 27, 1) 70%);
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(125, 211, 252, 0.3);
-  box-shadow: inset 0 0 30px rgba(59, 130, 246, 0.22), 0 0 22px rgba(34, 211, 238, 0.18);
-}
-
-.hud-core {
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(circle at center, rgba(59,130,246,0.32), rgba(10,14,22,0.9));
-  border: 1px solid rgba(125,211,252,0.3);
-}
-
-.hud-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.hud-info small {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  opacity: 0.7;
-}
-
-.chat-window {
-  flex: 1;
-  background: rgba(15, 23, 42, 0.38);
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  border-radius: 20px;
-  padding: 16px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.message-row {
-  display: flex;
-}
-
-.message-row.user {
-  justify-content: flex-end;
-}
-
-.bubble {
-  max-width: min(72%, 640px);
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(14, 116, 144, 0.12);
-  border: 1px solid rgba(96, 165, 250, 0.15);
-}
-
-.message-row.user .bubble {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(34, 197, 94, 0.18));
-}
-
-.bubble small {
-  display: block;
-  margin-bottom: 6px;
-  opacity: 0.7;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.bubble p {
-  margin: 0;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.loading-bubble {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.pulse {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #7dd3fc;
-  box-shadow: 0 0 18px rgba(125, 211, 252, 0.9);
-  animation: pulse 1.2s infinite ease-in-out;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(0.8); opacity: 0.7; }
-  50% { transform: scale(1.25); opacity: 1; }
-}
-
-.composer {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.composer input {
-  width: 100%;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 14px;
-  padding: 15px 16px;
-  color: #e2e8f0;
-  outline: none;
-}
-
-.composer input:focus {
-  border-color: rgba(96, 165, 250, 0.7);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-}
-
-.composer button {
-  background: linear-gradient(135deg, #60a5fa, #34d399);
-  color: #04141d;
-  font-weight: 700;
-}
-
-.search-panel {
-  margin-top: 18px;
-  display: grid;
-  gap: 10px;
-}
-
-.search-card {
-  display: block;
-  color: #e2e8f0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  text-decoration: none;
-}
-
-.search-card strong {
-  display: block;
-  margin-bottom: 6px;
-}
-
-.search-card span {
-  opacity: 0.8;
-  line-height: 1.5;
-}
-
-@media (max-width: 900px) {
-  .jarvis-app {
-    display: block;
-  }
-
-  .sidebar {
-    margin-bottom: 18px;
-  }
-}
-
-@media (max-width: 560px) {
-  .jarvis-app {
-    padding: 14px;
-  }
-
-  .composer {
-    grid-template-columns: 1fr;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .bubble {
-    max-width: 100%;
-  }
-}
-
+## Observação importante
+Sem chaves, o app continua funcionando em modo local com respostas simuladas. Para pesquisa real, voz de IA e respostas com modelos externos, configure os providers no `.env`.
