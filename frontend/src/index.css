@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 
 type Role = 'user' | 'assistant';
 type Intent = 'assistant' | 'research' | 'coding' | 'creative' | 'planning' | 'memory';
@@ -15,6 +15,12 @@ type SearchItem = {
   content?: string;
 };
 
+type RuntimeConfig = {
+  provider: string;
+  model: string;
+  providers: Record<string, boolean>;
+};
+
 declare global {
   interface Window {
     SpeechRecognition?: any;
@@ -29,7 +35,7 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'PC online. Diga o que precisa: pesquisa, código, roteiro, planejamento ou conversa.',
+      content: 'PC online. Posso pesquisar, escrever código, criar roteiros, planejar tarefas e responder por voz.',
       intent: 'assistant',
     },
   ]);
@@ -38,9 +44,46 @@ function App() {
   const [status, setStatus] = useState('Sistema pronto');
   const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
   const [systemState, setSystemState] = useState<'online' | 'listening' | 'thinking' | 'researching' | 'executing'>('online');
+  const [configOpen, setConfigOpen] = useState(false);
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>({ provider: 'groq', model: 'llama-3.1-70b-versatile', providers: { groq: false, openrouter: false, openai: false, ollama: true } });
+  const [providerForm, setProviderForm] = useState({
+    provider: 'groq',
+    model: '',
+    groq_api_key: '',
+    groq_model: '',
+    openrouter_api_key: '',
+    openrouter_model: '',
+    openai_api_key: '',
+    openai_model: '',
+    ollama_base_url: 'http://localhost:11434',
+    ollama_model: 'llama3.1',
+    tavily_api_key: '',
+    brave_api_key: '',
+    elevenlabs_api_key: '',
+    elevenlabs_voice_id: '',
+    azure_speech_key: '',
+    azure_speech_region: 'eastus',
+  });
   const recognitionRef = useRef<any>(null);
 
+  const loadConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config`);
+      const data = await response.json();
+      setRuntimeConfig(data);
+      setProviderForm((prev) => ({
+        ...prev,
+        provider: data.provider || 'groq',
+        model: data.model || prev.model,
+      }));
+    } catch {
+      setStatus('Configuração local sem backend ativo');
+    }
+  };
+
   useEffect(() => {
+    loadConfig();
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -81,6 +124,40 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
+  const saveConfig = async () => {
+    try {
+      const payload = {
+        provider: providerForm.provider,
+        groq_api_key: providerForm.groq_api_key || undefined,
+        groq_model: providerForm.groq_model || undefined,
+        openrouter_api_key: providerForm.openrouter_api_key || undefined,
+        openrouter_model: providerForm.openrouter_model || undefined,
+        openai_api_key: providerForm.openai_api_key || undefined,
+        openai_model: providerForm.openai_model || undefined,
+        ollama_base_url: providerForm.ollama_base_url || undefined,
+        ollama_model: providerForm.ollama_model || undefined,
+        tavily_api_key: providerForm.tavily_api_key || undefined,
+        brave_api_key: providerForm.brave_api_key || undefined,
+        elevenlabs_api_key: providerForm.elevenlabs_api_key || undefined,
+        elevenlabs_voice_id: providerForm.elevenlabs_voice_id || undefined,
+        azure_speech_key: providerForm.azure_speech_key || undefined,
+        azure_speech_region: providerForm.azure_speech_region || undefined,
+      };
+
+      await fetch(`${API_BASE}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      setStatus('Configuração salva');
+      setConfigOpen(false);
+      await loadConfig();
+    } catch {
+      setStatus('Não foi possível salvar a configuração');
+    }
+  };
+
   const sendMessage = async (value?: string) => {
     const input = (value ?? draft).trim();
     if (!input) return;
@@ -108,10 +185,10 @@ function App() {
 
       setMessages((prev) => [...prev, { role: 'assistant', content: assistantReply, intent: data.intent }]);
       setSearchItems(data.search_results ?? []);
-      setStatus(`Intent: ${data.intent ?? 'assistant'}`);
       setSystemState(data.intent === 'research' ? 'researching' : 'executing');
+      setStatus(`Intent: ${data.intent ?? 'assistant'}`);
       speak(assistantReply);
-    } catch (error) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
@@ -127,7 +204,7 @@ function App() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await sendMessage();
   };
@@ -137,7 +214,6 @@ function App() {
       setStatus('Seu navegador não suporta reconhecimento de voz');
       return;
     }
-
     recognitionRef.current.start();
   };
 
@@ -204,22 +280,13 @@ function App() {
           </div>
 
           <div className="toolbar">
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => {
-                setMessages([{ role: 'assistant', content: 'Sessão reiniciada. PC online e pronto.', intent: 'assistant' }]);
-                setSearchItems([]);
-                setStatus('Sessão reiniciada');
-              }}
-            >
+            <button type="button" className="ghost-btn" onClick={() => setConfigOpen((prev) => !prev)}>
+              config
+            </button>
+            <button type="button" className="ghost-btn" onClick={() => setMessages([{ role: 'assistant', content: 'Sessão reiniciada. PC online e pronto.', intent: 'assistant' }])}>
               reset
             </button>
-            <button
-              type="button"
-              className={`voice-btn ${listening ? 'active' : ''}`}
-              onClick={startListening}
-            >
+            <button type="button" className={`voice-btn ${listening ? 'active' : ''}`} onClick={startListening}>
               {listening ? 'escutando' : 'microfone'}
             </button>
           </div>
@@ -236,6 +303,82 @@ function App() {
             <strong>{systemModes[systemState].toUpperCase()}</strong>
           </div>
         </div>
+
+        {configOpen && (
+          <div className="config-panel">
+            <div className="config-grid">
+              <label>
+                Provider
+                <select value={providerForm.provider} onChange={(e) => setProviderForm({ ...providerForm, provider: e.target.value })}>
+                  <option value="groq">Groq</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="ollama">Ollama</option>
+                </select>
+              </label>
+
+              <label>
+                Model
+                <input value={providerForm.model} placeholder={runtimeConfig.model} onChange={(e) => setProviderForm({ ...providerForm, model: e.target.value })} />
+              </label>
+
+              <label>
+                GROQ API Key
+                <input value={providerForm.groq_api_key} onChange={(e) => setProviderForm({ ...providerForm, groq_api_key: e.target.value })} />
+              </label>
+
+              <label>
+                GROQ Model
+                <input value={providerForm.groq_model} onChange={(e) => setProviderForm({ ...providerForm, groq_model: e.target.value })} />
+              </label>
+
+              <label>
+                OpenRouter API Key
+                <input value={providerForm.openrouter_api_key} onChange={(e) => setProviderForm({ ...providerForm, openrouter_api_key: e.target.value })} />
+              </label>
+
+              <label>
+                OpenRouter Model
+                <input value={providerForm.openrouter_model} onChange={(e) => setProviderForm({ ...providerForm, openrouter_model: e.target.value })} />
+              </label>
+
+              <label>
+                OpenAI API Key
+                <input value={providerForm.openai_api_key} onChange={(e) => setProviderForm({ ...providerForm, openai_api_key: e.target.value })} />
+              </label>
+
+              <label>
+                OpenAI Model
+                <input value={providerForm.openai_model} onChange={(e) => setProviderForm({ ...providerForm, openai_model: e.target.value })} />
+              </label>
+
+              <label>
+                Tavily API Key
+                <input value={providerForm.tavily_api_key} onChange={(e) => setProviderForm({ ...providerForm, tavily_api_key: e.target.value })} />
+              </label>
+
+              <label>
+                Brave API Key
+                <input value={providerForm.brave_api_key} onChange={(e) => setProviderForm({ ...providerForm, brave_api_key: e.target.value })} />
+              </label>
+
+              <label>
+                Ollama URL
+                <input value={providerForm.ollama_base_url} onChange={(e) => setProviderForm({ ...providerForm, ollama_base_url: e.target.value })} />
+              </label>
+
+              <label>
+                Ollama Model
+                <input value={providerForm.ollama_model} onChange={(e) => setProviderForm({ ...providerForm, ollama_model: e.target.value })} />
+              </label>
+            </div>
+
+            <div className="config-footer">
+              <button type="button" className="ghost-btn" onClick={() => setConfigOpen(false)}>fechar</button>
+              <button type="button" className="primary-btn" onClick={saveConfig}>salvar</button>
+            </div>
+          </div>
+        )}
 
         <div className="chat-window">
           {messages.map((message, index) => (

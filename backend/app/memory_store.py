@@ -1,52 +1,78 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from typing import Any
+import os
+from dataclasses import dataclass
+from typing import Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class MemoryStore:
-    def __init__(self, max_history: int = 20):
-        self.max_history = max_history
-        self.sessions: dict[str, deque[str]] = defaultdict(deque)
-        self.profiles: dict[str, dict[str, Any]] = defaultdict(dict)
+@dataclass
+class Settings:
+    app_name: str = "PC"
+    api_title: str = "PC AI Assistant"
+    api_version: str = "0.3.0"
+    default_language: str = "pt-BR"
+    app_mode: str = "development"
 
-    def push(self, session_id: str, role: str, content: str) -> None:
-        history = self.sessions[session_id]
-        history.append(f"{role}: {content}")
-        while len(history) > self.max_history:
-            history.popleft()
+    provider: str = "groq"
+    model: str = "llama-3.1-70b-versatile"
 
-    def get_context(self, session_id: str) -> str:
-        history = list(self.sessions.get(session_id, []))
-        if not history:
-            return "Sem memória recente."
-        return "\n".join(history)
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama-3.1-70b-versatile"
 
-    def learn_preference(self, session_id: str, message: str) -> None:
-        text = message.lower()
-        profile = self.profiles[session_id]
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: str = "openai/gpt-4o-mini"
 
-        if any(phrase in text for phrase in ["prefiro", "gosto de", "quero que", "me lembre", "lembre-se", "sou"]):
-            profile["last_note"] = message
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o-mini"
 
-        if "python" in text:
-            profile["language"] = "Python"
-        if "react" in text:
-            profile["framework"] = "React"
-        if "voz" in text or "microfone" in text:
-            profile["interaction"] = "voz"
-        if "premium" in text:
-            profile["style"] = "premium"
-        if "objetivo" in text or "meta" in text:
-            profile["focus"] = "produtividade"
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1"
 
-    def to_profile_summary(self, session_id: str) -> str:
-        profile = self.profiles.get(session_id, {})
-        if not profile:
-            return "Nenhuma preferência memorizada ainda."
-        return ", ".join(f"{key}: {value}" for key, value in profile.items())
+    tavily_api_key: Optional[str] = None
+    brave_api_key: Optional[str] = None
 
-    def summarize(self, session_id: str) -> str:
-        context = self.get_context(session_id)
-        profile = self.to_profile_summary(session_id)
-        return f"Contexto: {context}\nPerfil: {profile}"
+    elevenlabs_api_key: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+
+    azure_speech_key: Optional[str] = None
+    azure_speech_region: str = "eastus"
+
+    default_session_id: str = "pc-default-session"
+
+    def selected_model(self) -> str:
+        if self.provider == "groq":
+            return self.groq_model
+        if self.provider == "openrouter":
+            return self.openrouter_model
+        if self.provider == "openai":
+            return self.openai_model
+        if self.provider == "ollama":
+            return self.ollama_model
+        return self.groq_model
+
+
+settings = Settings(
+    app_name=os.getenv("APP_NAME", "PC"),
+    default_language=os.getenv("DEFAULT_LANGUAGE", "pt-BR"),
+    app_mode=os.getenv("APP_MODE", "development"),
+    provider=os.getenv("ACTIVE_PROVIDER", "groq"),
+    groq_api_key=os.getenv("GROQ_API_KEY"),
+    groq_model=os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile"),
+    openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
+    openrouter_model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1"),
+    tavily_api_key=os.getenv("TAVILY_API_KEY"),
+    brave_api_key=os.getenv("BRAVE_API_KEY"),
+    elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY"),
+    elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
+    azure_speech_key=os.getenv("AZURE_SPEECH_KEY"),
+    azure_speech_region=os.getenv("AZURE_SPEECH_REGION", "eastus"),
+)
+settings.model = settings.selected_model()
