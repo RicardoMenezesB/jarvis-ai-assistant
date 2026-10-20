@@ -1,0 +1,241 @@
+import { FormEvent, useMemo, useState } from 'react';
+
+type Role = 'user' | 'assistant';
+
+type Message = {
+  role: Role;
+  content: string;
+  intent?: string;
+};
+
+type SearchItem = {
+  title?: string;
+  url?: string;
+  content?: string;
+};
+
+const API_BASE = 'http://localhost:8000';
+
+function App() {
+  const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: 'assistant',
+      content: 'PC online. Diga o que você precisa — pesquisa, código, roteiro, organização ou conversa.',
+      intent: 'assistant',
+    },
+  ]);
+  const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [status, setStatus] = useState('Sistema pronto');
+  const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
+
+  const recognition = useMemo(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      return null;
+    }
+
+    const instance = new SpeechRecognition();
+    instance.lang = 'pt-BR';
+    instance.interimResults = false;
+    instance.maxAlternatives = 1;
+
+    instance.onstart = () => {
+      setListening(true);
+      setStatus('Escutando sua voz...');
+    };
+
+    instance.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setDraft(transcript);
+      setStatus('Comando capturado');
+    };
+
+    instance.onend = () => {
+      setListening(false);
+      setStatus('Ouvindo pronto para novo comando');
+    };
+
+    return instance;
+  }, []);
+
+  const sendMessage = async (value?: string) => {
+    const input = (value ?? draft).trim();
+    if (!input) return;
+
+    setLoading(true);
+    setStatus('PC processando sua solicitação...');
+
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setDraft('');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input, session_id: 'pc-session' }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API indisponível');
+      }
+
+      const data = await response.json();
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.reply,
+        intent: data.intent,
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      setSearchItems(data.search_results ?? []);
+      setStatus(`Intent: ${data.intent ?? 'assistant'}`);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'PC está em modo offline local. Verifique se o backend está rodando e tente novamente.',
+          intent: 'assistant',
+        },
+      ]);
+      setStatus('Backend indisponível');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    await sendMessage();
+  };
+
+  const startListening = () => {
+    if (!recognition) {
+      setStatus('Seu navegador não suporta reconhecimento de voz');
+      return;
+    }
+
+    recognition.start();
+  };
+
+  const quickActions = [
+    'Pesquise sobre IA de voz',
+    'Crie um roteiro de vídeo',
+    'Construa um app em React',
+    'Me ajude a planejar a semana',
+  ];
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar panel">
+        <div className="brand-row">
+          <div className="brand-mark">PC</div>
+          <div>
+            <p className="eyebrow">Assistente premium</p>
+            <h1>PC</h1>
+          </div>
+        </div>
+
+        <div className="status-box">
+          <span className="status-dot" />
+          <span>{status}</span>
+        </div>
+
+        <div className="shortcut-list">
+          {quickActions.map((action) => (
+            <button key={action} onClick={() => sendMessage(action)} className="shortcut-button" type="button">
+              {action}
+            </button>
+          ))}
+        </div>
+
+        <div className="metrics">
+          <div className="metric-card">
+            <span>voz</span>
+            <strong>{listening ? 'ativa' : 'pronta'}</strong>
+          </div>
+          <div className="metric-card">
+            <span>agentes</span>
+            <strong>5</strong>
+          </div>
+          <div className="metric-card">
+            <span>memória</span>
+            <strong>online</strong>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-panel panel">
+        <header className="header-bar">
+          <div>
+            <p className="eyebrow">Sistema operacional do assistente</p>
+            <h2>Interface principal</h2>
+          </div>
+
+          <div className="toolbar">
+            <button type="button" className="secondary-button" onClick={() => setMessages([{ role: 'assistant', content: 'Sessão reiniciada. PC pronto.', intent: 'assistant' }])}>
+              reset
+            </button>
+            <button type="button" className={`voice-button ${listening ? 'active' : ''}`} onClick={startListening}>
+              {listening ? 'escutando' : 'microfone'}
+            </button>
+          </div>
+        </header>
+
+        <div className="chat-window">
+          {messages.map((message, index) => (
+            <div key={`${message.role}-${index}`} className={`message-row ${message.role}`}>
+              <div className="bubble">
+                <small>{message.role === 'assistant' ? 'PC' : 'Você'}</small>
+                <p>{message.content}</p>
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="message-row assistant">
+              <div className="bubble loading-bubble">
+                <span className="pulse" />
+                <span>PC está pensando...</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="composer">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Peça ao PC para pesquisar, programar, criar ou planejar..."
+            aria-label="Mensagem para o PC"
+          />
+          <button type="submit" disabled={loading}>
+            {loading ? 'enviando...' : 'Enviar'}
+          </button>
+        </form>
+
+        {searchItems.length > 0 && (
+          <div className="search-panel">
+            <h3>Busca ativa</h3>
+            {searchItems.map((item, index) => (
+              <a key={`${item.url ?? 'item'}-${index}`} href={item.url ?? '#'} target="_blank" rel="noreferrer" className="search-card">
+                <strong>{item.title ?? 'Resultado'}</strong>
+                <span>{item.content ?? 'Sem resumo adicional'}</span>
+              </a>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;

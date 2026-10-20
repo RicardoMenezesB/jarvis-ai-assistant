@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from app.agents import AgentOrchestrator
+from app.config import settings
+from app.memory_store import MemoryStore
+
+app = FastAPI(title=settings.api_title, version=settings.api_version)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+memory_store = MemoryStore()
+agent = AgentOrchestrator(memory_store)
+
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str = "pc-default-session"
+
+
+@app.get("/api/health")
+async def health() -> dict:
+    return {
+        "status": "ok",
+        "name": settings.app_name,
+        "version": settings.api_version,
+        "groq_configured": bool(settings.groq_api_key),
+    }
+
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest) -> dict:
+    result = await agent.handle(request.session_id, request.message)
+    return result
+
+
+@app.get("/api/memory/{session_id}")
+async def memory(session_id: str) -> dict:
+    return {
+        "session_id": session_id,
+        "context": memory_store.get_context(session_id),
+        "profile": memory_store.to_profile_summary(session_id),
+    }
+
+
+@app.post("/api/voice")
+async def voice(request: ChatRequest) -> dict:
+    result = await agent.handle(request.session_id, request.message)
+    return {
+        "transcript": request.message,
+        "reply": result["reply"],
+        "voice": result["voice"],
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
